@@ -22,7 +22,7 @@ namespace huffmanCode
             for (int i = 0; i < huffmanCode.HuffmanData.Length; i++)
             {
                 Console.WriteLine(huffmanCode.HuffmanData[i]);
-            }
+            } 
 
             Console.WriteLine("解压");
             Unzip unzip = new Unzip();
