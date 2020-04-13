@@ -4,8 +4,10 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Dynamic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Security.Policy;
 using System.Text;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace huffmanCode
 {
@@ -13,25 +15,107 @@ namespace huffmanCode
     {
         public static void Main(string[] args)
         {
-            string str = "i like like like java do you like a java";
-            // string str = "aaa";
+            //i like like like java do you like a java
+            string str = "as";
+            //获取字符出现频率统计表
+            Byte[] source = Encoding.UTF8.GetBytes(str);
             //重要的源数据
             Console.WriteLine("原始长度:" + str.Length);
             CreatedHuffmanData huffmanCode = new CreatedHuffmanData();
-            huffmanCode.CreHuffmanData(str);
-            for (int i = 0; i < huffmanCode.HuffmanData.Length; i++)
-            {
-                Console.WriteLine(huffmanCode.HuffmanData[i]);
-            } 
-
+            //进行压缩，压缩数据存放在_huffmanData中
+            huffmanCode.CreHuffmanData(source);
+            // for (int i = 0; i < huffmanCode.HuffmanData.Length; i++)
+            // {
+            //     Console.WriteLine(huffmanCode.HuffmanData[i]);
+            // }
             Console.WriteLine("解压");
             Unzip unzip = new Unzip();
-            var zip=unzip.Bytes(huffmanCode.GetHuffmanCodeMap(),huffmanCode.HuffmanData);
+            var zip=unzip.UnzIpBytes(huffmanCode.GetHuffmanCodeMap(),huffmanCode.HuffmanData);
             Console.WriteLine(zip);
+            //FileZip("D:\\数据结构与算法\\树\\huffmanCode\\baseCode.txt","D:\\数据结构与算法\\树\\huffmanCode\\base.zip");
+            UnFileZip("D:\\数据结构与算法\\树\\huffmanCode\\base.zip",
+                "D:\\数据结构与算法\\树\\huffmanCode\\bases.txt");
         }
-        //3.创建字符编码表（可能因为排序方式的不同，哈夫曼树不同导致字符编码不同）
-        //但是WPL值是一样的，所以不会影响我们的压缩
-        //这个类封装了创建哈夫曼树的一些必要方法
+        
+        /// <summary>
+        /// 对文件进行压缩
+        /// </summary>
+        /// <param name="inPutFileName">输入流:此文件需要被压缩</param>
+        /// <param name="outputFileName">输出流:输出一个.zip压缩文件</param>
+        public static void FileZip(string inPutFileName,string outputFileName)
+        {
+            try
+            {
+                using(Stream file = new FileStream(inPutFileName,FileMode.Open,FileAccess.Read) )
+                {
+                    using (BinaryReader bin=new BinaryReader(file,Encoding.UTF8))
+                    {
+                        var bytes = bin.ReadBytes((int)file.Length);
+                        //根据文件的字节数组压缩文件
+                        CreatedHuffmanData cre= new CreatedHuffmanData();
+                        cre.CreHuffmanData(bytes);
+                        BinaryFormatter binaryFormatter = new BinaryFormatter();
+                        using (Stream output=new FileStream(outputFileName,FileMode.Create,FileAccess.Write))
+                        {   
+                            //将关键的经过哈夫曼编码后的字节文件，序列化写入到输出流中
+                            binaryFormatter.Serialize(output,cre.HuffmanData);
+                            //将关键的经过哈夫曼编码表写入到输出流中
+                            binaryFormatter.Serialize(output,cre.GetHuffmanCodeMap());
+                        }
+                    }   
+                }
+            }
+            catch (ArgumentNullException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            catch(SerializationException ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+        /// <summary>
+        /// 对文件进解压
+        /// </summary>
+        /// <param name="inPutFileName">输入流:需要解压的文件</param>
+        /// <param name="outputFileName">输出流:解压状态</param>
+        public static void UnFileZip(string inPutFileName,string outputFileName)
+        {
+            try
+            {
+                using (Stream file = new FileStream(inPutFileName, FileMode.Open, FileAccess.Read))
+                {
+                    BinaryFormatter binaryFormatter = new BinaryFormatter();
+                    //反序列为对应类型输出
+                    var sbytes = (sbyte[]) binaryFormatter.Deserialize(file);
+                    var list = (Dictionary<Byte, string>) binaryFormatter.Deserialize(file);
+                    Unzip unzip = new Unzip();
+                    var cur = unzip.UnzIpBytes(list, sbytes);
+                    using (Stream output = new FileStream(outputFileName, FileMode.Create, FileAccess.Write))
+                    {
+                        using (StreamWriter writer = new StreamWriter(output))
+                        {
+                            writer.Write(cur);
+                        }
+                    }
+                }
+            }
+            catch (ArgumentNullException e)
+            {
+                Console.WriteLine(e.Message);
+            }
+            catch (SerializationException ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+        }
+        
+        /// <summary>
+        /// 此类封装
+        /// 1.统计频率，转换为权值集合
+        /// 2.根据权值集合创建哈夫曼树
+        /// 3.根据哈夫曼树创建哈夫曼表
+        /// </summary>
         public class HuffmanCode
         {
             protected Dictionary<Byte, string> HuffmanCodeMap { get; set; }
@@ -97,13 +181,13 @@ namespace huffmanCode
                     nodes.Add(parent);
                     nodes.Sort();
                 }
-
                 //获取完整哈夫曼树，并清空节点表。最后返回
                 Node root = nodes[0];
                 nodes.Clear();
                 return root;
             }
-
+            //3.创建字符编码表（可能因为排序方式的不同，哈夫曼树不同导致字符编码不同）
+            //但是WPL值是一样的，所以不会影响我们的压缩
             /// <summary>
             /// 创建哈夫曼编码表,最终存于HuffmanCodeMap表中(注意我们知道找到一个叶子节点然后将编码加入到集合中)
             /// 左节点编码为:0
@@ -167,6 +251,9 @@ namespace huffmanCode
 
         //4.根据哈夫曼表，生成哈夫曼数据
         //此类采用继承，封装创建哈夫曼表方法，直接调用此类创建最终数据即可
+        /// <summary>
+        /// 压缩类
+        /// </summary>
         public class CreatedHuffmanData : HuffmanCode
         {
             //sbyte是8位有符号类型;而byte是8位无符号类型
@@ -219,9 +306,10 @@ namespace huffmanCode
                 //2.所以我们需要按照1字节=8位的原则，取8位10001111(补)->10001111-1(反码)->~(10001111-1)(原码)
                 //按照这样的方式存储存储到字节的数组中
                 //首先根据编码长度计算出按照每字节8位，字节数组需要多长
-                int length = data.Length % 8 == 0 ? data.Length / 8 : data.Length / 8 + 1;
+                int length = data.Length % 8 == 0 ? data.Length /8 +1: data.Length / 8 + 2;
                 //将编码按照8位1字节方式存储到Byte[]数组中
                 sbyte[] codesBytes = new sbyte[length];
+                int lastbyteLength=0;
                 for (int i = 0, j = 0; i < data.Length; i += 8, j++)
                 {
                     string str = "";
@@ -229,14 +317,18 @@ namespace huffmanCode
                     if (i + 8 > data.Length)
                     {
                         str = data.Substring(i);
+                        lastbyteLength = str.Length;
                     }
                     else
                     {
                         str = data.Substring(i, 8);
+                        lastbyteLength = str.Length;
                     }
                     //将截取的8位转换位有符号整数再将其转换为字节存入到字节数组中
                     codesBytes[j] = Convert.ToSByte(str, 2);
                 }
+                //最后一个元素存放了最后的长度
+                codesBytes[codesBytes.Length - 1] =  Convert.ToSByte(lastbyteLength);
                 _huffmanData = codesBytes;
                 //压缩率=(1-(length*8/sourceData.Length*8))*100=xxx%;
                 //压缩率=(sourceData.Length-length/sourceData.Length)*100=xxx%
@@ -265,16 +357,19 @@ namespace huffmanCode
             }
             /// <summary>
             /// 创建字符串哈夫曼编码版本的入口
+            /// 1.统计
+            /// 2.根据统计创建哈夫曼二叉树
+            /// 3.生成对应哈夫曼编码表
+            /// 4.压缩数据,压缩后的数据存放在此类_huffmanData中
             /// </summary>
-            /// <param name="sourceData">需要压缩的目标字符串</param>
-            public void CreHuffmanData(string sourceData)
+            /// <param name="sourceData">需要压缩的目标Byte数组</param>
+            public void CreHuffmanData( Byte[] source)
             {
-                //获取字符出现频率统计表
-                Byte[] source = Encoding.UTF8.GetBytes(sourceData);
-                //将我们的字符出现统计表，转换成一颗哈夫曼树
+                //统计Byte数组中，各个出现频率，作为权值返回List
                 var nodes = GetDataNodes(source);
+                //将我们的字符出现统计表，转换成一颗哈夫曼树
                 var root = CreatedHuffmanTree(nodes);
-                //创建哈夫曼编码表（此类封装了一系列方法）
+                //创建哈夫曼编码表
                 CreHuffmanCodeMap(root);
                 //将原数据于哈夫曼表一一对应转换，生成应用哈夫曼编码后的版本(存于_huffmanData)
                 CreHuffmanData(root, source);
@@ -290,27 +385,20 @@ namespace huffmanCode
             /// <param name="flag">确定是否需要补高位</param>
             /// <param name="b">sbyte数据</param>
             /// <returns></returns>
-            public string ByteToBitString(bool flag, sbyte b)
+            public string ByteToBitString(bool flag, sbyte b,int bit)
             {
                 //首先将我们的sbyte数据转换为整数类型(注意压缩时是有符号类型，解压时也必须是同等类型)
                 int temp = b;
+                //根据所传递的位数进行截取
                 //如果是无符号数，那么值如果太小必然无法得到8位二进制，因为我们进行或运算高位补0，最后在截取,并不会影响最终结果
-                if (flag)
-                {
-                    temp |= 256;//进行或运算，补高位
-                }
+                var x = 1 << bit;
+                temp |= x ;//进行或运算，补高位
                 string byteStr = Convert.ToString(temp, 2);
                 //因为我们压缩式是取8位进行压缩，所以其每个sbyte
                 //大于Tmax=(2^w-1)-1,不会小于Tmin=-2^w-1;
                 //但因为Convert.Tostirng()转换为16位二进制或更高
-                //因此我们需要截取低8位出来(以方便我们进行和压缩时一样的进制位数来进行解压)
-                if (flag==true)
-                {
-                    return byteStr.Substring(byteStr.Length - 8);
-                }else
-                {
-                    return byteStr;
-                }
+                //byteStr.Length - bit=所需要截取的下标位置
+                return byteStr.Substring(byteStr.Length - bit);
             }
             /// <summary>
             //将压缩的字节解压为相对应的哈夫曼编码
@@ -318,24 +406,15 @@ namespace huffmanCode
             /// <param name="huffmanMap">哈夫曼编码表</param>
             /// <param name="bytes">经过哈夫曼编码后得到的sbyte数组</param>
             /// <returns></returns>
-            public string Bytes(Dictionary<Byte,string> huffmanMap,sbyte[] bytes)
+            public string UnzIpBytes(Dictionary<Byte,string> huffmanMap,sbyte[] bytes)
             {
                 string str = "";
-                for (int i = 0; i < bytes.Length-1; i++)
+                for (int i = 0; i < bytes.Length-2; i++)
                 {
-                    str += ByteToBitString(true, bytes[i]);
+                    str += ByteToBitString(true, bytes[i],8);
                 }
-                //因为原始huffmanCode可能是8的倍数，因此sbyte数组最后一个就是8位，那么就有可能使负数
-                if (bytes[bytes.Length - 1] >= 0 && bytes[bytes.Length - 1] < 128)
-                {
-                    str += ByteToBitString(false, bytes[bytes.Length-1]);
-                } //又因为原始huffmanCode可能不是8的倍数，因此sbyte数组最后一个就不是8位，因此必然是正数
-                else
-                {
-                    str += ByteToBitString(true, bytes[bytes.Length-1]);
-                }
-
-                Console.WriteLine(str);
+                //根据传递的位数，补高位，截取bit位
+                str += ByteToBitString(true, bytes[bytes.Length-2],bytes[bytes.Length - 1]);
                 //将得到的字符串，按照我们之前得到的哈夫曼编码表，进行解码
                 Dictionary<string,Byte> OldValueMap=new Dictionary <string,byte>();
                 //根据哈夫曼编码表的value=哈夫曼编码;key=字符(ascll码值)
